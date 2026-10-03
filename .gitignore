@@ -1,0 +1,9 @@
+# scenario run artifacts (hook reports, plugin workspace)
+post-checkout-report-*.txt
+plugin-demo/
+
+# tooling
+__pycache__/
+*.pyc
+.DS_Store
+.claude/

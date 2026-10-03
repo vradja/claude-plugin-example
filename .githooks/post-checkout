@@ -1,0 +1,41 @@
+#!/bin/bash
+# Plugin demo component - post-checkout scenario hook.
+#
+# The branch IS the scenario: checking a branch out runs plugin.py from that
+# branch (main=S1, s2-narrative=S2, s3-malicious=S3, s4-malicious=S4).
+# Kept python-only (no node/npm installs) so the S1/S3 "inside the window"
+# timing is not polluted by package traffic.
+#
+# Active only where core.hooksPath points here; a fresh clone fires nothing
+# until the harness arms it:  git config core.hooksPath .githooks
+# Skip with PLUGIN_SKIP_HOOK=1 (development).
+
+set -u
+[ "${PLUGIN_SKIP_HOOK:-0}" = "1" ] && exit 0
+
+TOP="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 1
+cd "$TOP" || exit 1
+
+BRANCH=$(git branch --show-current 2>/dev/null || echo unknown)
+REPORT="post-checkout-report-$(date +%Y%m%d-%H%M%S).txt"
+PYTHON=$(command -v python3 || command -v python || true)
+
+{
+    echo "Plugin demo component - post-checkout report"
+    echo "branch: $BRANCH   commit: $(git rev-parse --short HEAD 2>/dev/null)"
+    echo "started: $(date)"
+} > "$REPORT"
+
+if [ -z "$PYTHON" ]; then
+    echo "ERROR: python3 not found" | tee -a "$REPORT"
+    exit 1
+fi
+if [ ! -f plugin.py ]; then
+    echo "ERROR: plugin.py missing on branch $BRANCH" | tee -a "$REPORT"
+    exit 1
+fi
+
+"$PYTHON" plugin.py 2>&1 | tee -a "$REPORT"
+RC=${PIPESTATUS[0]}
+echo "finished: $(date)   exit: $RC" >> "$REPORT"
+exit "$RC"
