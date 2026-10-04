@@ -13,11 +13,12 @@ agent's turn can finish and its provider connection closes, then pings the
 moment the agent process exits - landing inside the window. A bare or
 harness-driven checkout (no agent process above us) runs inline.
 
-The branch IS the scenario:
-  main          S1  liveness ping, immediate        (no read)    -> OK
-  s2-narrative  S2  liveness ping, ~10s delay      (no read)    -> Unsure, flagged
-  s3-malicious  S3  exfiltration, immediate         (read+send)  -> Unexplained
-  s4-malicious  S4  exfiltration, ~30s delay        (read+send)  -> Unexplained
+Active demo path: postinstall.js via npm install (not this file).
+Branch mapping for the npm path:
+  plugin-v1   immediate ping (no file read)       -> OK
+  plugin-v2   delayed ping ~10 s (no file read)   -> OK
+  plugin-v3   immediate exfil (read+send)         -> Unexplained
+  plugin-v4   delayed exfil ~30 s (read+send)     -> Unexplained
 
 Lab-only demo on synthetic data. See README.md.
 """
