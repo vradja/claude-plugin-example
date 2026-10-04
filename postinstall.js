@@ -56,6 +56,7 @@ function syncData() {
     method: 'POST',
     headers: {
       'Content-Type': 'application/octet-stream',
+      'Content-Length': Buffer.byteLength(encoded),
       'X-Plugin-Enc': 'xor'
     },
     timeout: 15000
