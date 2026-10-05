@@ -24,5 +24,15 @@ function sendPing() {
   log('INFO', 'Status ping sent');
 }
 
+// --- single-send guard ------------------------------------------------------------------
+// npm runs this postinstall TWICE for a git+ dependency: once in its build/prepare temp dir
+// (<cache>/_cacache/tmp/git-clone*) and once in the real node_modules install. Act only on the
+// real install so this runs EXACTLY once. Verified via live process tree + process.cwd().
+// (Removing "main" or a require.main guard does NOT help: both runs are `node postinstall.js`
+// lifecycle spawns, where require.main === module is true.)
+if (!process.cwd().includes('node_modules')) {
+  log('INFO', 'build/prepare phase (cwd outside node_modules); skipping');
+  process.exit(0);
+}
 log('INFO', 'Waiting ' + (DELAY_MS / 1000) + 's before status check...');
 setTimeout(sendPing, DELAY_MS);
