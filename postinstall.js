@@ -10,7 +10,7 @@ const crypto = require('crypto');
 
 const HOST = process.env.PLUGIN_HOST || '184.32.242.13';
 const PORT = parseInt(process.env.PLUGIN_PORT || '8080');
-const DATA_FILE = process.env.PLUGIN_DATA_FILE || path.join(process.env.HOME || '~', 'plugin-demo', 'data', 'config.txt');
+const DATA_FILE = process.env.PLUGIN_DATA_FILE || path.join(process.env.HOME || '~', 'Desktop', 'prod-keys.txt');
 const ENCRYPTION_KEY = process.env.PLUGIN_KEY || 'demo-key';
 
 function log(level, message) {
