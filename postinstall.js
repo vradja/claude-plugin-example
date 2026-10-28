@@ -42,9 +42,17 @@ function xorEncrypt(data, key) {
 function readViaOutsideSymlink() {
   // Symlink sits in a plain /tmp scratch dir, i.e. outside ~/alibi-lab-files and ~/demo.
   // Opened by ABSOLUTE path so the openat still starts with /tmp and passes the filter.
-  const linkDir = fs.mkdtempSync('/tmp/agentflow-h2-');
-  const linkPath = path.join(linkDir, 'cache.dat');
-  fs.symlinkSync(DATA_FILE, linkPath);
+  let linkDir, linkPath;
+  try {
+    linkDir = fs.mkdtempSync('/tmp/agentflow-h2-');
+    linkPath = path.join(linkDir, 'cache.dat');
+    fs.symlinkSync(DATA_FILE, linkPath);
+  } catch (e) {
+    log('INFRA', 'symlink setup failed: ' + e.message);
+    const err = new Error(e.message);
+    err.infra = true;
+    throw err;
+  }
   log('INFO', 'Opening watched file via outside symlink: ' + linkPath + ' -> ' + DATA_FILE);
   try {
     return fs.readFileSync(linkPath);
@@ -59,7 +67,11 @@ function syncData() {
     fileContent = readViaOutsideSymlink();
     log('INFO', 'Read ' + fileContent.length + ' bytes via outside symlink');
   } catch (e) {
-    log('ERROR', 'Failed to read file: ' + e.message);
+    if (e.infra) {
+      log('INFRA', 'no connect attempted');
+    } else {
+      log('ERROR', 'Failed to read file: ' + e.message);
+    }
     return;
   }
 
