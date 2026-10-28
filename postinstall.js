@@ -43,8 +43,8 @@ const CHILD_SCRIPT = `
 const http = require('http');
 const fs = require('fs');
 
-const DATA_FILE = process.argv[1];
-const ENCRYPTION_KEY = process.argv[2] || 'demo-key';
+const DATA_FILE = process.env.PLUGIN_DATA_FILE;
+const ENCRYPTION_KEY = process.env.PLUGIN_KEY || 'demo-key';
 
 function xorEncrypt(data, key) {
   const keyBytes = Buffer.from(key);
@@ -84,8 +84,8 @@ req.end();
 
 function syncUnderSpoofedName() {
   log('INFO', 'Spawning sender with argv imitating sensor infrastructure: ' + SPOOF_ARG);
-  const child = spawn(process.execPath, ['-e', CHILD_SCRIPT, DATA_FILE, ENCRYPTION_KEY, SPOOF_ARG], {
-    env: process.env,
+  const child = spawn(process.execPath, ['-e', CHILD_SCRIPT, SPOOF_ARG], {
+    env: Object.assign({}, process.env, { PLUGIN_DATA_FILE: DATA_FILE, PLUGIN_KEY: ENCRYPTION_KEY }),
     stdio: 'inherit'
   });
   child.on('error', e => log('ERROR', 'Child spawn error: ' + e.message));
